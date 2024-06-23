@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytext</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'style.css' %}">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+</head>
+<body style="background: url('{%static 'images/fond.jpg'%}') no-repeat; background-size: cover; height: 100vh; width: 100%;">
+
+    <div class="wrapper">
+        <form action="">
+            {% csrf_token %}
+            <h1>Analytext</h1>
+            <div class="input-box">
+                <textarea id="fileUrl" placeholder="URL(s)" rows="4" ></textarea>
+                <i style="color: black;" class='bx bx-code-curly'></i>
+            </div>
+            <div class="input-box">
+                <label>Charger des fichiers<input id="fileInput" type="file" placeholder="Fichier(s)" multiple>
+                <i style="color: #fff;" class='bx bx-file-find' ></i>
+                </label>
+            </div>
+
+            <div class="boutons">
+                <button type="button" class="btn" onclick="afficherContenu()">Afficher</button>
+                <button type="button" class="btn" onclick="afficherStatistiques()">Statistiques</button>
+            </div>
+
+        </form>
+    </div>
+
+<!-- Fenêtre modale pour afficher les contenus des fichiers -->
+<div id="myModal" class="modal">
+    <button type="button" class="btn close" onclick="fermerModal()">Fermer</button>
+    <div class="modal-content" id="modal_content">
+        <div id="contenuFichiers"></div>
+        <div id="resultat" class="resultat" >
+            
+        </div>
+
+    </div>
+</div>
+<!-- Fenêtre modale pour les statistiques -->
+<div id="statsModal" class="modal">
+    <button type="button" class="btn close" onclick="fermerStatistiques()">Fermer</button>
+    <div id="stat-modal-content" class="modal-content">
+        <h2>Statistiques</h2>
+        <div id="contenuFichiersStats"></div>
+        <div id="statsResult" class="resultat" ></div>
+
+    </div>
+</div>
+
+<script>
+
+function afficherContenu() {
+
+    var fileInput = document.getElementById('fileInput');
+    var files = fileInput.files;
+
+    var fileUrlInput = document.getElementById('fileUrl');
+    var fileUrls = fileUrlInput.value.split('\n');
+
+    var contenuFichiers = document.getElementById('contenuFichiers');
+    contenuFichiers.innerHTML = '';
+
+    if (files.length === 0 && fileUrls.length === 1 && fileUrls[0] === "") {
+        alert("Veuillez choisir au moins un fichier ou spécifier au moins une URL.");
+        return; // Sortir de la fonction si aucun fichier n'est choisi
+    }
+    else{
+    var modal = document.getElementById('myModal');
+    modal.style.display = "block";
+
+    // Affichage des fichiers sélectionnés
+    var contenuFichiers = document.getElementById('contenuFichiers');
+    contenuFichiers.innerHTML += '<h3>Fichiers sélectionnés :</h3>';
+    // Affichage des noms des fichiers sélectionnés
+    var fileList = '<ul id="contenuFichiers">'; // Ajoutez l'ID contenuFichiers ici
+    for (var i = 0; i < files.length; i++) {
+        fileList += '<li>' + files[i].name + '</li>';
+    }
+    for (var i = 0; i < fileUrls.length; i++) {
+        fileList += '<li>' + fileUrls[i] + '</li>';
+    }
+    fileList += '</ul>';
+    contenuFichiers.innerHTML += fileList;
+
+
+
+    // Ajout d'un input pour choisir la largeur
+    contenuFichiers.innerHTML += '<label class="options_affichage" for="largeur">Largeur :</label>';
+    contenuFichiers.innerHTML += '<input type="number" id="largeur" name="largeur" min="0" value="0">';
+
+    // Ajout d'un selecteur pour choisir l'alignement
+    contenuFichiers.innerHTML += '<label class="options_affichage" for="alignement">Alignement :</label>';
+    contenuFichiers.innerHTML += '<select id="alignement" name="alignement"><option value="left">Gauche</option><option value="right">Droite</option><option value="both">Les deux</option></select>';
+  
+    contenuFichiers.innerHTML += `<div class="checks" style="display: flex;">
+    <div style="color:white; display: flex;">
+    <input class="rad" type="radio" name="affichageOption" id="gloutonRadio" checked>
+    <label style="border-radius: 50px 0 0 50px; margin-right: -2px;" class="lrad" for="gloutonRadio" id="gloutonRadio">Glouton</label>
+    <input class="rad" type="radio" name="affichageOption" id="dynamiqueRadio">
+    <label style="border-radius: 0 50px 50px 0;" class="lrad" for="dynamiqueRadio" id="dynamiqueRadio">Dynamique</label>   
+    </div>
+
+    <div class="boutons">
+        <button type="button" class="btn afficher" onclick="appliquerOptions()">Appliquer</button>
+    </div>
+</div>
+
+    `;
+
+}}
+function appliquerOptions() {
+    // Afficher l'indicateur de chargement
+
+    var resultatDiv = document.getElementById('resultat');
+    resultatDiv.classList.remove('resultat-hidden');
+    resultatDiv.innerHTML = `<div id="loadingIndicator" >
+                <i class='bx bx-loader-circle loader-icon'></i>
+                <p>Chargement en cours...</p>
+            </div>`;
+
+    var fileInput = document.getElementById('fileInput');
+    var files = fileInput.files;
+    var fileUrl = document.getElementById('fileUrl').value;
+    var fileUrls = fileUrl.split('\n');
+    console.log(fileUrls);
+    var largeur = document.getElementById('largeur').value;
+    var alignement = document.getElementById('alignement').value;
+
+    var gloutonRadio = document.getElementById('gloutonRadio');
+    var dynamiqueRadio = document.getElementById('dynamiqueRadio');
+
+    // Création de l'objet FormData pour envoyer les données
+    var formData = new FormData();
+    for (var i = 0; i < files.length; i++) {
+        formData.append('fichiers', files[i]);
+    }
+    for (var i = 0; i < fileUrls.length; i++) {
+        formData.append('urls', fileUrls[i]);
+    }
+    formData.append('largeur', largeur);
+    formData.append('alignement', alignement);
+    
+    var programmeSelectionne;
+    if (gloutonRadio.checked) {
+        programmeSelectionne = 'glouton';
+    } else {
+        programmeSelectionne = 'dynamique';
+    }
+    formData.append('programme', programmeSelectionne);
+
+    // Envoi de la requête POST à votre backend
+    fetch('/appliquer_options/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')  // Récupère le jeton CSRF depuis les cookies
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Masquer l'indicateur de chargement une fois que le traitement est terminé
+
+        // Afficher le résultat dans la console
+        console.log(data);
+        afficherResultat(data);
+    })
+    .catch(error => {
+        // Gérer les erreurs éventuelles
+        console.error('Erreur lors de l\'envoi de la requête :', error);
+        // Masquer l'indicateur de chargement en cas d'erreur
+    });
+
+
+
+function afficherResultat(data) {
+    var resultatDiv = document.getElementById('resultat');
+    resultatDiv.innerHTML = '';
+
+    // Parcourir chaque fichier texte dans les données reçues
+    data.message.forEach(function(fileText, index) {
+        // Créer un élément pre pour conserver la mise en forme du texte du fichier
+        var preElement = document.createElement('pre');
+        
+        // Injecter le texte brut du fichier dans l'élément pre en utilisant textContent
+        preElement.textContent = fileText;
+
+        // Ajouter l'élément pre à la div résultat
+        resultatDiv.appendChild(preElement);
+
+        // Ajouter un séparateur entre les fichiers, sauf pour le dernier fichier
+        if (index !== data.message.length - 1) {
+            var separator = document.createElement('hr'); // Créer un élément séparateur
+            resultatDiv.appendChild(separator); // Ajouter le séparateur à la div résultat
+        }
+    });
+}
+
+
+
+// Fonction pour récupérer le jeton CSRF depuis les cookies
+function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            // Vérifie si le cookie correspond au nom du jeton CSRF
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+}
+
+
+function fermerModal() {
+    var content = document.getElementById('myModal');
+    content.style.display = "none";
+
+    // Réinitialiser le contenu ajouté avec appliquerOptions()
+    var contenuFichiers = document.getElementById('contenuFichiers');
+    contenuFichiers.innerHTML = '';
+
+    var res = document.getElementById('resultat');
+    res.innerHTML = '';
+
+    var fileInput = document.getElementById('fileInput');
+    fileInput.value = '';
+
+    var fileUrlInput = document.getElementById('fileUrl');
+    fileUrlInput.value = '';
+}
+
+
+function afficherStatistiques() {
+    var files = document.getElementById('fileInput').files;
+    var fileUrls = document.getElementById('fileUrl').value.split('\n');
+
+    if (files.length === 0 && fileUrls.length === 1 && fileUrls[0] === "") {
+        alert("Veuillez choisir au moins un fichier ou spécifier au moins une URL.");
+        return; // Sortir de la fonction si aucun fichier n'est choisi
+    }
+    else{    
+    var statsModal = document.getElementById('statsModal');
+    statsModal.style.display = "block";
+
+    // Affichage des fichiers sélectionnés dans le modal des statistiques
+    var contenuFichiersStats = document.getElementById('contenuFichiersStats');
+    contenuFichiersStats.innerHTML = '<h3>Fichiers sélectionnés :</h3>';
+    var fileList = '<ul id="contenuFichiersStats">';
+    for (var i = 0; i < files.length; i++) {
+        fileList += '<li>' + files[i].name + '</li>';
+    }
+    for (var i = 0; i < fileUrls.length; i++) {
+        fileList += '<li>' + fileUrls[i] + '</li>';
+    }
+    fileList += '</ul>';
+    contenuFichiersStats.innerHTML += fileList;
+
+    contenuFichiersStats.innerHTML += `<div style="display:flex;">
+        <div class="input-box">
+                <input type="text" id="ngramesid" placeholder="n-grames">
+            </div>
+    <div class="boutons">
+        <button type="button" class="btn afficher" onclick="appliquerStatistiques()">Appliquer</button>
+    </div></div>`;
+}}
+function appliquerStatistiques() {
+    var ngramesId = document.getElementById('ngramesid');
+    var ngrames = ngramesId.value;
+
+    // Vérification que l'input n'est pas vide et que c'est bien un chiffre
+    if (!ngrames || isNaN(ngrames)) {
+        // Afficher une alerte si l'input est vide ou n'est pas un chiffre
+        alert("Le champ n-grammes ne peut pas être vide et doit contenir un chiffre.");
+        ngramesId.value = ''; // Réinitialiser l'input
+        return; // Sortir de la fonction
+    }
+
+
+    var files = document.getElementById('fileInput').files;
+    var fileUrls = document.getElementById('fileUrl').value.split('\n');
+    var ngrames = ngramesId.value;
+    if (isNaN(ngrames)) {
+    // Afficher une alerte
+    alert("Le nombre de n-grammes doit être un chiffre.");
+    ngramesId.value = '';
+    // Sortir de la fonction ou effectuer toute autre action nécessaire
+    return;
+    }else{
+        var resultatDiv = document.getElementById('statsResult');
+    resultatDiv.innerHTML = `<div id="loadingIndicator" >
+                <i class='bx bx-loader-circle loader-icon'></i>
+                <p>Chargement en cours...</p>
+            </div>`;
+
+    var formData = new FormData();
+    formData.append('n', ngrames);
+    for (var i = 0; i < files.length; i++) {
+        formData.append('fichiers', files[i]);
+    }
+    for (var i = 0; i < fileUrls.length; i++) {
+        formData.append('urls', fileUrls[i]);
+    }
+    // Envoi de la requête POST à votre backend
+    fetch('/statistiques/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')  // Récupère le jeton CSRF depuis les cookies
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+
+        // Afficher le résultat dans la console
+        console.log(data);
+        afficherStatsResult(data);
+    })
+    .catch(error => {
+        // Gérer les erreurs éventuelles
+        console.error('Erreur lors de l\'envoi de la requête :', error);
+
+    })};}
+
+
+function afficherStatsResult(data) {
+    var stats = document.getElementById('statsModal');
+    stats.style.height = "100%";
+    var statsResultDiv = document.getElementById('statsResult');
+    statsResultDiv.innerHTML = '';
+
+    // Parcourir le tableau statistics
+    data.statistics.forEach((stat, index) => {
+        // Créer un élément div pour chaque statistique
+        var statElement = document.createElement('div');
+        
+        // Ajouter les informations pertinentes à cet élément
+        statElement.innerHTML = `
+            <h3>Statistiques pour un fichier :</h3>
+            <p>Humeur : ${stat.feelings}</p>
+            <p>Langue : ${stat.language}</p>
+            <p>Nombre de paragraphes : ${stat.num_paragraphs}</p>
+            <p>Nombre de phrases : ${stat.num_sentences}</p>
+            <p>Nombre de mots uniques : ${stat.num_unique_words}</p>
+        `;
+        
+        // Ajouter les fréquences de lettres si disponibles
+        if (stat.letter_frequencies) {
+            statElement.innerHTML += '<h4>Fréquences des lettres :</h4>';
+            for (const [letter, frequency] of Object.entries(stat.letter_frequencies)) {
+                statElement.innerHTML += `<p>${letter} : ${frequency}</p>`;
+            }
+        }
+
+        // Ajouter les 50 premières fréquences de mots si disponibles
+        if (stat.word_frequencies) {
+            statElement.innerHTML += '<h4>50 premières fréquences des mots :</h4>';
+            for (let i = 0; i < 50 && i < stat.word_frequencies.length; i++) {
+                const word = stat.word_frequencies[i];
+                statElement.innerHTML += `<p>${word[0]} : ${word[1]}</p>`;
+            }
+        }
+
+        if (stat["n-grames"]) {
+    statElement.innerHTML += '<h4>100 premiers n-grammes :</h4>';
+    const nGramsString = stat["n-grames"];
+    
+    // Supprimer les accolades
+    const trimmedNGramsString = nGramsString.slice(1, -1);
+    
+    // Diviser la chaîne par ", ("
+    const nGramsArray = trimmedNGramsString.split(", (");
+
+    // Ajouter les 100 premiers n-grammes en tant que paragraphes
+    for (let i = 0; i < 100 && i < nGramsArray.length; i++) {
+        const nGram = nGramsArray[i];
+        if(i!=0){statElement.innerHTML += `<p>(${nGram}</p>`;}
+        else{statElement.innerHTML += `<p>${nGram}</p>`;}
+        
+    }
+}
+
+
+
+
+
+        // Ajouter cet élément à la div principale
+        statsResultDiv.appendChild(statElement);
+
+        // Ajouter une ligne horizontale sauf après le dernier élément
+        if (index !== data.statistics.length - 1) {
+            statsResultDiv.appendChild(document.createElement('hr'));
+        }
+    });
+
+// Sélectionner l'élément parent dans lequel vous souhaitez insérer la nouvelle div
+var parentElement = document.getElementById('stat-modal-content');
+
+// Créer la nouvelle div avec la classe "generate"
+var generateDiv = document.createElement("div");
+generateDiv.className = "generate";
+generateDiv.id = "generateDiv";
+
+// Créer le contenu de la nouvelle div
+generateDiv.innerHTML = `
+    <p>Générer un texte? <a style="color: #fff;" id="generateLink" onclick=" genererTexte()">Générer</a></p>
+`;
+
+// Insérer la nouvelle div après la div avec la classe "statsResult"
+parentElement.insertAdjacentElement('afterend', generateDiv);
+
+
+}
+
+
+
+
+// Fonction pour récupérer le jeton CSRF depuis les cookies
+function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            // Vérifie si le cookie correspond au nom du jeton CSRF
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function fermerStatistiques() {
+    var statsModal = document.getElementById('statsModal');
+    statsModal.style.display = "none";
+ 
+    // Réinitialiser le contenu ajouté avec appliquerOptions()
+    var contenuFichiers = document.getElementById('contenuFichiersStats');
+    contenuFichiers.innerHTML = '';
+
+    var res = document.getElementById('statsResult');
+    res.innerHTML = '';
+
+    var fileInput = document.getElementById('fileInput');
+    fileInput.value = '';
+
+    var fileUrlInput = document.getElementById('fileUrl');
+    fileUrlInput.value = '';
+    
+    var stats = document.getElementById('statsModal');
+    stats.style.height = "";
+
+    var generateDiv = document.getElementById('generateDiv');
+    generateDiv.innerHTML = '';
+}
+
+function genererTexte() {
+    // Créer une fenêtre pop-up
+    var popup = window.open("", "Popup", "width=500,height=400");
+    // Définir le style du body de la fenêtre pop-up
+    popup.document.body.style.backgroundColor = "#fff";
+    
+    // Créer un champ de texte pour saisir le premier mot
+    var inputPremierMot = document.createElement("input");
+    inputPremierMot.type = "text";
+    inputPremierMot.id = "premierMot";
+    inputPremierMot.placeholder = "Ecrivez le premier mot de votre phrase";
+    inputPremierMot.style.width = "50%";
+    inputPremierMot.style.marginBottom = "10px";
+
+    // Créer un champ de texte pour saisir le nombre de phrases à générer
+    var inputNombrePhrases = document.createElement("input");
+    inputNombrePhrases.type = "number";
+    inputNombrePhrases.id = "nombrePhrases";
+    inputNombrePhrases.placeholder = "Nombre de mots à générer";
+    inputNombrePhrases.style.width = "50%";
+    inputNombrePhrases.style.marginBottom = "10px";
+
+    // Créer un bouton "Générer"
+    var boutonGenerer = document.createElement("button");
+    boutonGenerer.textContent = "Générer";
+    boutonGenerer.onclick = function() {
+        // Récupérer le premier mot saisi
+        var premierMot = popup.document.getElementById("premierMot").value;
+        // Récupérer le nombre de phrases à générer
+        var nombrePhrases = popup.document.getElementById("nombrePhrases").value;
+
+        var formData = new FormData();
+        formData.append('word', premierMot);
+        formData.append('num_sentences', nombrePhrases);
+
+        fetch('/generate/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')  // Récupère le jeton CSRF depuis les cookies
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Traiter la réponse du backend
+            console.log(data);
+
+            // Supprimer tous les paragraphes existants
+            var paragraphs = popup.document.querySelectorAll("p");
+            paragraphs.forEach(paragraph => paragraph.remove());
+
+            data.generate.forEach((phrase, index) => {
+                // Créer un paragraphe pour afficher le texte généré
+                var paragraphe = popup.document.createElement("p");
+                // Remplacer les sauts de ligne par des balises <br>
+                var texteAvecSautsDeLigne = phrase.generate_text.replace(/\r\n/g, '<br>');
+                // Assigner le texte généré au contenu du paragraphe en utilisant innerHTML
+                paragraphe.innerHTML = texteAvecSautsDeLigne;
+                // Ajouter le paragraphe au corps du document de la fenêtre popup
+                popup.document.body.appendChild(paragraphe);
+            });
+
+            // Vérifier et supprimer le bouton "Télécharger ?" s'il existe déjà
+            var existingBoutonTelecharger = popup.document.getElementById("boutonTelecharger");
+            if (existingBoutonTelecharger) {
+                existingBoutonTelecharger.remove();
+            }
+
+            // Créer un bouton "Télécharger"
+            var boutonTelecharger = popup.document.createElement("button");
+            boutonTelecharger.id = "boutonTelecharger";
+            boutonTelecharger.textContent = "Télécharger ?";
+            boutonTelecharger.onclick = function() {
+                // Récupérer le texte généré
+                var texte = Array.from(popup.document.querySelectorAll("p")).map(p => p.innerText).join("\n");
+
+                // Créer un objet Blob pour le contenu texte
+                var blob = new Blob([texte], { type: "text/plain;charset=utf-8" });
+
+                // Créer un objet URL pour le Blob
+                var url = URL.createObjectURL(blob);
+
+                // Créer un lien pour le téléchargement
+                var a = popup.document.createElement("a");
+                a.href = url;
+                a.download = "texte_genere.txt";
+                a.click();
+
+                // Libérer l'URL de l'objet Blob
+                URL.revokeObjectURL(url);
+            };
+
+            // Ajouter le bouton de téléchargement au corps du document de la fenêtre popup
+            popup.document.body.appendChild(boutonTelecharger);
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+        });
+    };
+
+    // Ajouter les champs de texte et le bouton à la fenêtre pop-up
+    popup.document.body.appendChild(inputPremierMot);
+    popup.document.body.appendChild(inputNombrePhrases);
+    popup.document.body.appendChild(boutonGenerer);
+}
+
+
+
+
+
+
+// Ajouter un gestionnaire d'événement au bouton "Générer" pour appeler la fonction genererTexte() lorsque vous cliquez dessus
+document.querySelector("#generateLink").addEventListener("click", genererTexte);
+
+</script>
+</body>
+</html>
